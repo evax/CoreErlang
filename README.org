@@ -1,0 +1,33 @@
+#+STARTUP: showall
+
+* CoreErlang
+=CoreErlang= is a Haskell library, consisting of a [[file:Language/CoreErlang/Parser.lhs][parser]] and [[file:Language/CoreErlang/Pretty.hs][pretty-printer]] for
+[[http://www.it.uu.se/research/group/hipe/cerl/][Core Erlang]].
+
+The [[file:Language/CoreErlang/Parser.lhs][parser]] uses the [[http://hackage.haskell.org/package/parsec][parsec package]] and the [[file:Language/CoreErlang/Pretty.hs][pretty-printer]] was modelled after the
+corresponding module of the [[http://hackage.haskell.org/package/haskell-src][haskell-src package]]. It also exposes a [[file:Language/CoreErlang/Syntax.hs][Syntax]] module
+which enables easy manipulation of terms.
+
+It is able to parse and pretty print all of [[http://www.it.uu.se/research/group/hipe/cerl/][Core Erlang]]. Remaining work includes
+customizing the [[file:Language/CoreErlang/Pretty.hs][pretty-printer]] and refining the [[file:Language/CoreErlang/Syntax.hs][syntax]] interface.
+
+** Example
+#+BEGIN_SRC fish
+stack ghci
+#+END_SRC
+#+BEGIN_SRC haskell
+:{
+ let (Right fun) = parse fundef ""
+    "'1+'/1 =\n\
+    \     ( fun (_cor0) ->\n\
+    \         call 'erlang':'+'\n\
+    \             (_cor0, 1)\n\
+    \       -| ['compiler_generated'] )\n"
+:}
+putStrLn (prettyPrint fun)
+#+END_SRC
+#+BEGIN_SRC erlang
+'1+'/1 =
+    ( fun (_cor0) -> call 'erlang':'+' (_cor0, 1)
+      -| ['compiler_generated'] )
+#+END_SRC
