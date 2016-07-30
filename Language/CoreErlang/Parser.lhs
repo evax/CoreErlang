@@ -33,9 +33,9 @@ module Language.CoreErlang.Parser (
   annotation, annotated,
   -- ** Module definitions
   parseModule,
-  -- * Parse Error (from -- "Text.Parsec")
-  ParseError
   ) where
+
+import           Control.Applicative                    ((<|>))
 
 import           Language.CoreErlang.Syntax
 
@@ -45,6 +45,22 @@ import           Control.Monad                          (liftM)
 import           Data.Char                              (chr, isControl)
 import           Numeric                                (readOct)
 
+-- import           Text.Parser.Char                       (char, lower, noneOf,
+--                                                          oneOf, satisfy, upper)
+-- import qualified Text.Parser.Char                       as PChar
+
+import           Text.Parser.Token.Style                (emptyIdents)
+
+import           Text.Trifecta hiding                   (angles, braces,
+                                                         brackets, commaSep,
+                                                         commaSep1, decimal,
+                                                         digit, integer, octal,
+                                                         parens, space, symbol,
+                                                         whiteSpace)
+import qualified Text.Trifecta                          as T
+
+\end{code}
+\begin{comment}
 import           Text.Parsec.Char                       (char, lower, noneOf,
                                                          oneOf, satisfy, upper)
 import qualified Text.Parsec.Char                       as PChar
@@ -52,14 +68,13 @@ import           Text.ParserCombinators.Parsec          (ParseError, Parser,
                                                          choice, count, eof,
                                                          many, many1, option,
                                                          parse, try, (<|>))
-\end{code}
-% -- import           Text.ParserCombinators.Parsec.Expr
-\begin{code}
+-- import           Text.ParserCombinators.Parsec.Expr
+
 import           Text.ParserCombinators.Parsec.Language
 import           Text.ParserCombinators.Parsec.Token    (TokenParser,
                                                          makeTokenParser)
 import qualified Text.ParserCombinators.Parsec.Token    as Token
-\end{code}
+\end{comment}
 
 \section{Grammar}
 
@@ -99,7 +114,7 @@ import qualified Text.ParserCombinators.Parsec.Token    as Token
 \begin{code}
 sign, digit :: Parser Char
 sign  = oneOf "+-"
-digit = PChar.digit
+digit = T.digit
 \end{code}
 
 \begin{code}
@@ -157,7 +172,7 @@ integer = do i <- positive <|> negative <|> decimal
 -- | > Float:
 -- >    sign? digit+ . digit+ ((E | e) sign? digit+)?
 float :: Parser Double
-float = Token.float lexer
+float = T.double
 \end{code}
 
 \begin{code}
@@ -327,7 +342,7 @@ ecase :: Parser Exp
 ecase = do reserved "case"
            exp <- expression
            reserved "of"
-           alts <- many1 (annotated clause)
+           alts <- some (annotated clause)
            reserved "end"
            return $ Case exp alts
 
@@ -415,8 +430,10 @@ annotation = do _  <- symbol "-|"
 annotated :: Parser a -> Parser (Ann a)
 annotated p = parens (Ann <$> p <*> annotation) <|> Constr <$> p
 
-lexer :: TokenParser ()
-lexer = makeTokenParser
+cerlIdents :: TokenParsing m => IdentifierStyle m
+cerlIdents = emptyIdents
+{-
+cerlIdents = makeTokenParser
             (emptyDef {
              --    commentStart = "",
              --    commentEnd = "",
@@ -430,55 +447,56 @@ lexer = makeTokenParser
              --    reservedOpNames,
              --    caseSensitive = True,
                })
+-}
 
 
 angles, braces, brackets :: Parser a -> Parser a
-angles     = Token.angles   lexer
-braces     = Token.braces   lexer
-brackets   = Token.brackets lexer
+angles     = T.angles
+braces     = T.braces
+brackets   = T.brackets
 
 commaSep, commaSep1 :: Parser a -> Parser [a]
-commaSep   = Token.commaSep  lexer
-commaSep1  = Token.commaSep1 lexer
+commaSep   = T.commaSep
+commaSep1  = T.commaSep1
 
 decimal :: Parser Integer
-decimal = Token.decimal lexer
+decimal = T.decimal
 \end{code}
 
 \begin{comment}
 -- float :: Parser Double
--- float      = Token.float lexer
+-- float      = Token.float cerlIdents
 \end{comment}
 
 \begin{code}
 identifier :: Parser String
-identifier = Token.identifier lexer
+identifier = T.ident cerlIdents
 \end{code}
 
 \begin{comment}
 -- natural :: Parser Integer
--- natural    = Token.natural lexer
+-- natural    = Token.natural cerlIdents
 \end{comment}
 
 \begin{code}
 parens :: Parser a -> Parser a
-parens = Token.parens lexer
+parens = T.parens
 
 reserved :: String -> Parser ()
-reserved = Token.reserved lexer
+reserved = T.reserve cerlIdents
 \end{code}
 
 \begin{comment}
 -- reservedOp :: String -> Parser ()
--- reservedOp = Token.reservedOp lexer
+-- reservedOp = Token.reservedOp
 \end{comment}
 
 \begin{code}
 symbol :: String -> Parser String
-symbol = Token.symbol lexer
+symbol = T.symbol
 
 whiteSpace :: Parser ()
-whiteSpace = Token.whiteSpace lexer
+whiteSpace = T.whiteSpace
 \end{code}
 
 \begin{comment}
@@ -493,9 +511,13 @@ whiteSpace = Token.whiteSpace lexer
 
 \begin{code}
 -- | Parse of a string, which should contain a complete CoreErlang module
-parseModule :: String -> Either ParseError (Ann Module)
-parseModule input = parse (do whiteSpace
-                              x <- annotatedModule
-                              eof
-                              return x) "" input
+parseModule :: String -> Either String (Ann Module)
+parseModule input =
+  let p = do whiteSpace
+             x <- annotatedModule
+             eof
+             return x
+  in  case parseString p mempty input of
+        Failure e -> Left (show e)
+        Success m -> Right m
 \end{code}
