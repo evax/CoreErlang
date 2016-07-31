@@ -15,6 +15,8 @@
 -- <http://www.it.uu.se/research/group/hipe/cerl/>
 
 -----------------------------------------------------------------------------
+{-# LANGUAGE LambdaCase #-}
+
 module Language.CoreErlang.Parser (
   -- * Lexical definitions
   sign, digit,
@@ -41,24 +43,14 @@ import           Language.CoreErlang.Syntax
 
 import           Prelude                                hiding (exp)
 
-import           Control.Monad                          (liftM)
+import Control.Applicative (empty)
+import           Control.Monad                          (liftM, void)
 import           Data.Char                              (chr, isControl)
 import           Numeric                                (readOct)
 
-import           Text.Parsec.Char                       (char, lower, noneOf,
-                                                         oneOf, satisfy, upper)
-import qualified Text.Parsec.Char                       as PChar
-import           Text.ParserCombinators.Parsec          (ParseError, Parser,
-                                                         choice, count, eof,
-                                                         many, many1, option,
-                                                         parse, try, (<|>))
-\end{code}
-% -- import           Text.ParserCombinators.Parsec.Expr
-\begin{code}
-import           Text.ParserCombinators.Parsec.Language
-import           Text.ParserCombinators.Parsec.Token    (TokenParser,
-                                                         makeTokenParser)
-import qualified Text.ParserCombinators.Parsec.Token    as Token
+import Text.Megaparsec hiding (space)
+import Text.Megaparsec.String
+import qualified Text.Megaparsec.Lexer as L
 \end{code}
 
 \section{Grammar}
@@ -99,13 +91,13 @@ import qualified Text.ParserCombinators.Parsec.Token    as Token
 \begin{code}
 sign, digit :: Parser Char
 sign  = oneOf "+-"
-digit = PChar.digit
+digit = digitChar
 \end{code}
 
 \begin{code}
 uppercase, lowercase, inputchar, control, space, namechar :: Parser Char
-uppercase = upper
-lowercase = lower
+uppercase = upperChar
+lowercase = lowerChar
 inputchar = noneOf "\n\r"
 control   = satisfy isControl
 space     = char ' '
@@ -157,7 +149,9 @@ integer = do i <- positive <|> negative <|> decimal
 -- | > Float:
 -- >    sign? digit+ . digit+ ((E | e) sign? digit+)?
 float :: Parser Double
-float = Token.float lexer
+float = sign' <*> L.float
+  where
+    sign' = option '+' sign >>= return . (\case '-' -> negate; _ -> id)
 \end{code}
 
 \begin{code}
@@ -327,7 +321,7 @@ ecase :: Parser Exp
 ecase = do reserved "case"
            exp <- expression
            reserved "of"
-           alts <- many1 (annotated clause)
+           alts <- some (annotated clause)
            reserved "end"
            return $ Case exp alts
 
@@ -415,44 +409,48 @@ annotation = do _  <- symbol "-|"
 annotated :: Parser a -> Parser (Ann a)
 annotated p = parens (Ann <$> p <*> annotation) <|> Constr <$> p
 
-lexer :: TokenParser ()
-lexer = makeTokenParser
-            (emptyDef {
-             --    commentStart = "",
-             --    commentEnd = "",
-                   commentLine = "%%",
-             --    nestedComments = True,
-                   identStart = upper <|> char '_',
-                   identLetter = namechar
-             --    opStart,
-             --    opLetter,
-             --    reservedNames,
-             --    reservedOpNames,
-             --    caseSensitive = True,
-               })
+-- https://mrkkrp.github.io/megaparsec/tutorials/parsing-simple-imperative-language.html#the-language
 
+sc :: Parser ()
+sc = L.space (void spaceChar) lineCmnt empty
+  where lineCmnt = L.skipLineComment "%%"
 
-angles, braces, brackets :: Parser a -> Parser a
-angles     = Token.angles   lexer
-braces     = Token.braces   lexer
-brackets   = Token.brackets lexer
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme sc
+
+angles, braces, brackets, parens :: Parser a -> Parser a
+angles   = between (symbol "<") (symbol ">")
+braces   = between (symbol "{") (symbol "}")
+brackets = between (symbol "[") (symbol "]")
+parens   = between (symbol "(") (symbol ")")
 
 commaSep, commaSep1 :: Parser a -> Parser [a]
-commaSep   = Token.commaSep  lexer
-commaSep1  = Token.commaSep1 lexer
+commaSep  = (`sepBy`  comma)
+commaSep1 = (`sepBy1` comma)
+
+comma :: Parser String
+comma = symbol ","
 
 decimal :: Parser Integer
-decimal = Token.decimal lexer
+decimal = lexeme L.decimal
 \end{code}
 
 \begin{comment}
--- float :: Parser Double
--- float      = Token.float lexer
+rws :: [String]
+rws = [
+  "module", "end", "fun", "let" ,"case", "of", "end", "when", "letrec", "in",
+  "apply", "call", "primop", "try", "catch", "receive", "after", "do"
+  ]
 \end{comment}
 
 \begin{code}
 identifier :: Parser String
-identifier = Token.identifier lexer
+identifier = lexeme (p >>= check)
+  where
+    p       = (:) <$> (uppercase <|> char '_') <*> many namechar
+    check x = if   x `elem` []
+              then fail $ "keyword" ++ show x ++ " cannot be an identifier"
+              else return x
 \end{code}
 
 \begin{comment}
@@ -461,11 +459,8 @@ identifier = Token.identifier lexer
 \end{comment}
 
 \begin{code}
-parens :: Parser a -> Parser a
-parens = Token.parens lexer
-
 reserved :: String -> Parser ()
-reserved = Token.reserved lexer
+reserved w = string w *> notFollowedBy alphaNumChar *> sc
 \end{code}
 
 \begin{comment}
@@ -475,10 +470,10 @@ reserved = Token.reserved lexer
 
 \begin{code}
 symbol :: String -> Parser String
-symbol = Token.symbol lexer
+symbol = L.symbol sc
 
 whiteSpace :: Parser ()
-whiteSpace = Token.whiteSpace lexer
+whiteSpace = lexeme sc
 \end{code}
 
 \begin{comment}
@@ -493,9 +488,9 @@ whiteSpace = Token.whiteSpace lexer
 
 \begin{code}
 -- | Parse of a string, which should contain a complete CoreErlang module
-parseModule :: String -> Either ParseError (Ann Module)
-parseModule input = parse (do whiteSpace
-                              x <- annotatedModule
-                              eof
-                              return x) "" input
+parseModule :: String -> Either (ParseError Char Dec) (Ann Module)
+parseModule = parse (do whiteSpace
+                        x <- annotatedModule
+                        eof
+                        return x) ""
 \end{code}
