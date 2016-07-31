@@ -15,7 +15,8 @@
 -- <http://www.it.uu.se/research/group/hipe/cerl/>
 
 -----------------------------------------------------------------------------
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Language.CoreErlang.Parser (
   -- * Lexical definitions
@@ -43,13 +44,14 @@ import           Language.CoreErlang.Syntax
 
 import           Prelude                                hiding (exp)
 
-import Control.Applicative (empty)
+import           Control.Applicative                    (empty)
 import           Control.Monad                          (liftM, void)
 import           Data.Char                              (chr, isControl)
+import           Data.Text                              (Text, pack, unpack)
 import           Numeric                                (readOct)
 
 import Text.Megaparsec hiding (space)
-import Text.Megaparsec.String
+import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
 \end{code}
 
@@ -90,7 +92,7 @@ import qualified Text.Megaparsec.Lexer as L
 
 \begin{code}
 sign, digit :: Parser Char
-sign  = oneOf "+-"
+sign  = oneOf (unpack "+-")
 digit = digitChar
 \end{code}
 
@@ -98,10 +100,10 @@ digit = digitChar
 uppercase, lowercase, inputchar, control, space, namechar :: Parser Char
 uppercase = upperChar
 lowercase = lowerChar
-inputchar = noneOf "\n\r"
+inputchar = noneOf (unpack "\n\r")
 control   = satisfy isControl
 space     = char ' '
-namechar  = uppercase <|> lowercase <|> digit <|> oneOf "@_"
+namechar  = uppercase <|> lowercase <|> digit <|> oneOf (unpack "@_")
 \end{code}
 
 \begin{code}
@@ -114,7 +116,7 @@ escape    = char '\\' >> (octal <|> ctrl <|> escapechar)
 
 \begin{code}
 octaldigit, octal, ctrlchar, escapechar :: Parser Char
-octaldigit = oneOf "01234567"
+octaldigit = oneOf (unpack "01234567")
 octal      = do chars <- tryOctal
                 let [(o, _)] = readOct chars
                 return (chr o)
@@ -125,7 +127,7 @@ octal      = do chars <- tryOctal
                       , try (count 1 octaldigit)
                       ]
 ctrlchar   = satisfy (`elem` ['\x0040'..'\x005f'])
-escapechar = oneOf "bdefnrstv\"\'\\"
+escapechar = oneOf (unpack "bdefnrstv\"\'\\")
 \end{code}
 
 
@@ -159,17 +161,17 @@ atom :: Parser Atom
 atom = do _ <- char '\''
 --          ((inputchar except control and \ and ')|escape)*
 --          inputchar = noneOf "\n\r"
-          a <- many (noneOf "\n\r\\\'")
+          a <- many (noneOf (unpack "\n\r\\\'"))
           _ <- char '\''
           whiteSpace -- TODO: buff
-          return $ Atom a
+          return $ Atom (pack a)
 \end{code}
 
 \begin{code}
 echar :: Parser Literal
 -- char = $((inputchar except control and space and \)|escape)
 echar = do _ <- char '$'
-           c <- noneOf "\n\r\\ " <|> escape
+           c <- noneOf (unpack "\n\r\\ ") <|> escape
            whiteSpace -- TODO: buff
            return $ LChar c
 \end{code}
@@ -178,9 +180,9 @@ echar = do _ <- char '$'
 estring :: Parser Literal
 -- string = "((inputchar except control and \\ and \"")|escape)*"
 estring = do _ <- char '"'
-             s <- many $ noneOf "\n\r\\\""
+             s <- many . noneOf . unpack $ "\n\r\\\""
              _ <- char '"'
-             return $ LString s
+             return $ LString (pack s)
 \end{code}
 
 \begin{code}
@@ -428,7 +430,7 @@ commaSep, commaSep1 :: Parser a -> Parser [a]
 commaSep  = (`sepBy`  comma)
 commaSep1 = (`sepBy1` comma)
 
-comma :: Parser String
+comma :: Parser Text
 comma = symbol ","
 
 decimal :: Parser Integer
@@ -436,7 +438,7 @@ decimal = lexeme L.decimal
 \end{code}
 
 \begin{comment}
-rws :: [String]
+rws :: [Text]
 rws = [
   "module", "end", "fun", "let" ,"case", "of", "end", "when", "letrec", "in",
   "apply", "call", "primop", "try", "catch", "receive", "after", "do"
@@ -444,8 +446,8 @@ rws = [
 \end{comment}
 
 \begin{code}
-identifier :: Parser String
-identifier = lexeme (p >>= check)
+identifier :: Parser Text
+identifier = lexeme (p >>= check . pack)
   where
     p       = (:) <$> (uppercase <|> char '_') <*> many namechar
     check x = if   x `elem` []
@@ -459,25 +461,25 @@ identifier = lexeme (p >>= check)
 \end{comment}
 
 \begin{code}
-reserved :: String -> Parser ()
-reserved w = string w *> notFollowedBy alphaNumChar *> sc
+reserved :: Text -> Parser ()
+reserved w = string (unpack w) *> notFollowedBy alphaNumChar *> sc
 \end{code}
 
 \begin{comment}
--- reservedOp :: String -> Parser ()
+-- reservedOp :: Text -> Parser ()
 -- reservedOp = Token.reservedOp lexer
 \end{comment}
 
 \begin{code}
-symbol :: String -> Parser String
-symbol = L.symbol sc
+symbol :: Text -> Parser Text
+symbol = fmap pack . L.symbol sc . unpack
 
 whiteSpace :: Parser ()
 whiteSpace = lexeme sc
 \end{code}
 
 \begin{comment}
--- runLex :: Show a => Parser a -> String -> IO ()
+-- runLex :: Show a => Parser a -> Text -> IO ()
 -- runLex p file = do input <- readFile file
 --                    parseTest (do whiteSpace
 --                                  x <- p
@@ -488,7 +490,7 @@ whiteSpace = lexeme sc
 
 \begin{code}
 -- | Parse of a string, which should contain a complete CoreErlang module
-parseModule :: String -> Either (ParseError Char Dec) (Ann Module)
+parseModule :: Text -> Either (ParseError Char Dec) (Ann Module)
 parseModule = parse (do whiteSpace
                         x <- annotatedModule
                         eof

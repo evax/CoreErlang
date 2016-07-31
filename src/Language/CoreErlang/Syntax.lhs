@@ -36,6 +36,7 @@ module Language.CoreErlang.Syntax (
   ) where
 
 import           Data.Data (Data, Typeable)
+import           Data.Text
 \end{code}
 
 \begin{code}
@@ -79,7 +80,7 @@ data Literal = LInt     Integer  -- ^ integer literal
              | LAtom    Atom     -- ^ atom literal
              | LNil              -- ^ empty list
              | LChar    Char     -- ^ character literal
-             | LString  String   -- ^ string literal
+             | LString  Text     -- ^ string literal
   deriving (Eq,Ord,Show,Data,Typeable)
 
 -- | A list of expressions
@@ -89,7 +90,7 @@ data List a = L [a]
 
 
 -- | This type is used to represent variable names.
-type VarName = String
+type VarName = Text
 
 -- | A pattern, to be matched against a value.
 data Pat = PVar VarName            -- ^ variable
@@ -148,7 +149,7 @@ data Guard = Guard Exps
 
 
 -- | This type is used to represent atoms
-data Atom = Atom String
+data Atom = Atom Text
  deriving (Eq,Ord,Show,Data,Typeable)
 
 -- | The timeout of a receive expression

@@ -16,6 +16,7 @@
 -----------------------------------------------------------------------------
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE OverloadedStrings    #-}
 
 module Language.CoreErlang.Pretty (
   -- * Pretty printing
@@ -27,6 +28,7 @@ module Language.CoreErlang.Pretty (
   PPMode(..), Indent, PPLayout(..), defaultMode) where
 
 import           Control.Category           ((<<<))
+import           Data.Text                  (Text, pack, unpack)
 import           Language.CoreErlang.Syntax
 import           Prelude                    hiding (exp)
 
@@ -141,8 +143,8 @@ nest i m = m >>= return . P.nest i
 \section{Literals}
 
 \begin{code}
-text :: String -> Doc
-text  = return . P.text
+text :: Text -> Doc
+text  = return . P.text . unpack
 
 char :: Char -> Doc
 char = return . P.char
@@ -240,31 +242,31 @@ punctuate p (d1:ds) = go d1 ds
     go d (e:es) = (d <> p) : go e es
 
 -- | render the document with a given style and mode.
-renderStyleMode :: P.Style -> PPMode -> Doc -> String
-renderStyleMode ppStyle ppMode d = P.renderStyle ppStyle . unDocM d $ ppMode
+renderStyleMode :: P.Style -> PPMode -> Doc -> Text
+renderStyleMode ppStyle ppMode d = pack . P.renderStyle ppStyle . unDocM d $ ppMode
 \end{code}
 
 \begin{comment}
 -- | render the document with a given mode.
--- renderWithMode :: PPMode -> Doc -> String
+-- renderWithMode :: PPMode -> Doc -> Text
 -- renderWithMode = renderStyleMode P.style
 
 -- | render the document with defaultMode
--- render :: Doc -> String
+-- render :: Doc -> Text
 -- render = renderWithMode defaultMode
 \end{comment}
 
 \begin{code}
 -- | pretty-print with a given style and mode.
-prettyPrintStyleMode :: Pretty a => P.Style -> PPMode -> a -> String
+prettyPrintStyleMode :: Pretty a => P.Style -> PPMode -> a -> Text
 prettyPrintStyleMode ppStyle ppMode = renderStyleMode ppStyle ppMode . pretty
 
 -- | pretty-print with the default style and a given mode.
-prettyPrintWithMode :: Pretty a => PPMode -> a -> String
+prettyPrintWithMode :: Pretty a => PPMode -> a -> Text
 prettyPrintWithMode = prettyPrintStyleMode P.style
 
 -- | pretty-print with the default style and 'defaultMode'.
-prettyPrint :: Pretty a => a -> String
+prettyPrint :: Pretty a => a -> Text
 prettyPrint = prettyPrintWithMode defaultMode
 \end{code}
 
@@ -314,7 +316,7 @@ instance Pretty FunDef where
 \begin{code}
 instance Pretty Literal where
   pretty (LChar c)   = char c
-  pretty (LString s) = text (show s)
+  pretty (LString s) = text (pack (show s))
   pretty (LInt i)    = integer i
   pretty (LFloat f)  = double f
   pretty (LAtom a)   = pretty a

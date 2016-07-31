@@ -14,13 +14,16 @@ Haskell program to parse and pretty print =example.core=:
 #+BEGIN_SRC haskell :tangle example.hs
 module Main where
 
+import           Data.Text                  (pack)
+import           Data.Text.IO               (putStrLn)
 import           Language.CoreErlang.Parser (parseModule)
 import           Language.CoreErlang.Pretty (prettyPrint)
+import           Prelude                    hiding (putStrLn)
 
 main :: IO ()
 main = do
   str <- readFile "example.core"
-  case parseModule str of
+  case parseModule (pack str) of
     Left  err    -> print err
     Right parsed -> putStrLn (prettyPrint parsed)
 #+END_SRC
