@@ -124,9 +124,9 @@ type Doc = DocM PPMode P.Doc
 class Pretty a where
         -- | Pretty-print something in isolation.
         pretty :: a -> Doc
+        pretty = prettyPrec 0
         -- | Pretty-print something in a precedence context.
         prettyPrec :: Int -> a -> Doc
-        pretty = prettyPrec 0
         prettyPrec _ = pretty
 \end{code}
 
