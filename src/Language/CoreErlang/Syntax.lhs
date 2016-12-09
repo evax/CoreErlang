@@ -48,14 +48,21 @@ data Module = Module Atom ModHeader ModBody
 data ModHeader = ModHeader Exports Attributes
   deriving (Eq,Ord,Show,Data,Typeable)
 
+-- | A list of 'FunName's.
 type Exports = [FunName]
 
--- | This type is used to represent function names
+-- | A function name is a name ('Atom') and an arity ('Integer'),
+-- written @a/i@, where @a@ is the /identifier/ and @i@ the /arity/.
 type FunName = (Atom,Integer)
--- deriving (Eq,Ord,Show,Data,Typeable)
+  -- deriving (Eq,Ord,Show,Data,Typeable)
 
+-- | A list of 'ModAttribute's.
 type Attributes   = [ModAttribute]
+
+-- | A 'Module' attribute @a = c@, where @a@ is the /key/ and @c@ the /value/.
 type ModAttribute = (Atom,Const)
+
+-- | A 'Module' body is a list of 'FunDef's.
 type ModBody      = [FunDef]
 
 -- | This type is used to represent lambdas
@@ -87,7 +94,6 @@ data Literal = LInt     Integer  -- ^ integer literal
 data List a = L [a]
             | LL [a] a
   deriving (Eq,Ord,Show,Data,Typeable)
-
 
 -- | This type is used to represent variable names.
 type VarName = Text

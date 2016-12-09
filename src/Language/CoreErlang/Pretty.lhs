@@ -122,12 +122,12 @@ type Doc = DocM PPMode P.Doc
 -- | Things that can be pretty-printed, including all the syntactic objects
 -- in "Language.CoreErlang.Syntax".
 class Pretty a where
-        -- | Pretty-print something in isolation.
-        pretty :: a -> Doc
-        pretty = prettyPrec 0
-        -- | Pretty-print something in a precedence context.
-        prettyPrec :: Int -> a -> Doc
-        prettyPrec _ = pretty
+    -- | Pretty-print something in isolation.
+    pretty :: a -> Doc
+    pretty = prettyPrec 0
+    -- | Pretty-print something in a precedence context.
+    prettyPrec :: Int -> a -> Doc
+    prettyPrec _ = pretty
 \end{code}
 
 \section{The pretty printing combinators}
@@ -479,6 +479,7 @@ layoutChoice a b dl = do e <- getPPEnv
                             then a dl
                             else b dl
 
+-- | Pretty print an 'Ann'otation.
 ppAnn :: (Pretty a) => [a] -> Doc
 ppAnn cs = text "-|" <+> bracketList (map pretty cs)
 \end{code}
